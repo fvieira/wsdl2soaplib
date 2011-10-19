@@ -33,7 +33,7 @@ from soaplib.core.model.enum import Enum
 
 INTERFACE = '''\
 class %(name)s(%(bases)s):
-    """%(docstring)s"""
+    """%(docstring)s"""\
 '''
 
 SERVICE_INTERFACE_DOCSTRING = '''\
@@ -238,18 +238,21 @@ def generate(client, url=None, standardTypeNamespaces=STANDARD_TYPE_NAMESPACES, 
                     )
 
 
-                if resolved.enum():
-                    for attr in type_[0].children():
-                        name = attr[0].name.replace(' ', '_')
-                        print >>typeOut, "    %s = String # XXX: Enumeration value" % name
+                if type_[0].children():
+                    if resolved.enum():
+                        for attr in type_[0].children():
+                            name = attr[0].name.replace(' ', '_')
+                            print >>typeOut, "    %s = String # XXX: Enumeration value" % name
 
+                    else:
+                            for attr in type_[0].children():
+                                name = attr[0].name.replace(' ', '_')
+                                attrTypeName = typeName(attr[0], sd)
+                                typeAttributes[rawTypeName][name] = attrTypeName
+                                schemaType = schemaTypeName(attr[0], sd, deps=typeDeps.setdefault(unicode(rawTypeName), []))
+                                print >>typeOut, "    %s = %s" % (normalizeIdentifier(name), schemaType,)
                 else:
-                    for attr in type_[0].children():
-                        name = attr[0].name.replace(' ', '_')
-                        attrTypeName = typeName(attr[0], sd)
-                        typeAttributes[rawTypeName][name] = attrTypeName
-                        schemaType = schemaTypeName(attr[0], sd, deps=typeDeps.setdefault(unicode(rawTypeName), []))
-                        print >>typeOut, "    %s = %s" % (normalizeIdentifier(name), schemaType,)
+                    print >>typeOut, '    pass'
 
                 print >>typeOut
 
@@ -267,6 +270,7 @@ def generate(client, url=None, standardTypeNamespaces=STANDARD_TYPE_NAMESPACES, 
                     )
                 )
             )
+        print >>serviceInterfaceOut
 
         methods = {} # name -> (response type, list of parameters,)
 
