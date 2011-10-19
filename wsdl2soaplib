@@ -59,7 +59,11 @@ METHOD_DOCSTRING = '''\
 %(args)s
 
         Returns: %(response)s
-        """
+        """\
+'''
+
+DEFAULT_RETURN = '''\
+        return None
 '''
 
 STANDARD_TYPE_NAMESPACES = [
@@ -371,6 +375,8 @@ def generate(client, url=None, standardTypeNamespaces=STANDARD_TYPE_NAMESPACES, 
                     args=''.join('\n        ' + arg_det for arg_det in methodArgDetails),
                     response=methodReturnType,
                 )
+
+            print >>serviceInterfaceOut, DEFAULT_RETURN
 
             print >>serviceInterfaceOut
 
