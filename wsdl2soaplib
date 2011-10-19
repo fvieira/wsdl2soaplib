@@ -19,13 +19,16 @@ HEADER = '''\
 %(wsdl)s.
 """
 
-from soaplib.serializers.primitive import (
-        String, Integer, Float, Double, DateTime, Bolean, Null, Array, Map, Any
-    )
-from soaplib.serializers.clazz import ClassSerializer
+from soaplib.core.model.primitive import (
+        Any, AnyAsDict, AnyUri, Boolean, Date, DateTime,
+        Decimal, Double, Duration, Integer, Float, Mandatory, String
+)
+from soaplib.core.model.clazz import Array, ClassModel
 
-from soaplib.service import SoapServiceBase
-from soaplib.service import soapmethod
+from soaplib.core.model.base import Null
+
+from soaplib.core.service import soap, DefinitionBase
+from soaplib.core.model.enum import Enum
 '''
 
 INTERFACE = '''\
@@ -47,7 +50,7 @@ WSDL_TYPES = {
 }
 '''
 
-SOAPMETHOD = '''    @soapmethod(%(args)s, _returns=%(response)s)'''
+SOAPMETHOD = '''    @soap(%(args)s, _returns=%(response)s)'''
 
 METHOD = '''    def %(name)s(self, %(args)s):'''
 
@@ -69,7 +72,7 @@ STANDARD_TYPE_NAMESPACES = [
 SCHEMA_TYPE_MAPPING = {
     None:                   '%(typeName)s',
 
-    'None':                 'None',
+    'None':                 'Null',
 
     'boolean':              'Boolean',
     'string':               'String',
@@ -90,14 +93,14 @@ SCHEMA_TYPE_MAPPING = {
     'nonNegativeInteger':   'Integer',
 
     'float':                'Float',
-    'double':               'Float',
+    'double':               'Double',
 
     'decimal':              'Decimal',
 
     'dateTime':             'DateTime',
-    'date':                 'DateTime',
+    'date':                 'Date',
 
-    'anyURI':               'String',
+    'anyURI':               'AnyUri',
     'token':                'String',
     'normalizedString':     'String',
 
@@ -210,7 +213,7 @@ def generate(client, url=None, standardTypeNamespaces=STANDARD_TYPE_NAMESPACES, 
                     find(resolved)
 
                 if not interfaceBases:
-                    interfaceBases = ['ClassSerializer']
+                    interfaceBases = ['ClassModel']
 
                 rawTypeName = typeName(type_[0], sd)
 
@@ -231,19 +234,19 @@ def generate(client, url=None, standardTypeNamespaces=STANDARD_TYPE_NAMESPACES, 
                         )
                     )
 
-                print >>typeOut, "    class types:"
 
                 if resolved.enum():
                     for attr in type_[0].children():
                         name = attr[0].name.replace(' ', '_')
-                        print >>typeOut, "        %s = String # XXX: Enumeration value" % name
+                        print >>typeOut, "    %s = String # XXX: Enumeration value" % name
+
                 else:
                     for attr in type_[0].children():
                         name = attr[0].name.replace(' ', '_')
                         attrTypeName = typeName(attr[0], sd)
                         typeAttributes[rawTypeName][name] = attrTypeName
                         schemaType = schemaTypeName(attr[0], sd, deps=typeDeps.setdefault(unicode(rawTypeName), []))
-                        print >>typeOut, "        %s = %s" % (normalizeIdentifier(name), schemaType,)
+                        print >>typeOut, "    %s = %s" % (normalizeIdentifier(name), schemaType,)
 
                 print >>typeOut
 
@@ -254,7 +257,7 @@ def generate(client, url=None, standardTypeNamespaces=STANDARD_TYPE_NAMESPACES, 
         # Main service interface
         print >>serviceInterfaceOut, INTERFACE % dict(
                 name=normalizeIdentifier(sd.service.name),
-                bases=u"SoapServiceBase",
+                bases=u"DefinitionBase",
                 docstring=formatDocstring(SERVICE_INTERFACE_DOCSTRING % dict(
                         serviceName=sd.service.name,
                         tns=sd.wsdl.tns[1],
@@ -346,7 +349,7 @@ def generate(client, url=None, standardTypeNamespaces=STANDARD_TYPE_NAMESPACES, 
 
                 methodArgDetails.append(methodSpec)
 
-                # for @soapmethod decorator
+                # for @soap decorator
 
                 schemaType = schemaTypeName(argDetail, sd)
                 methodArgSpecs.append(schemaType)
