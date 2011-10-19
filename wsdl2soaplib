@@ -50,14 +50,13 @@ WSDL_TYPES = {
 }
 '''
 
-SOAPMETHOD = '''    @soap(%(args)s, _returns=%(response)s)'''
+SOAPMETHOD = '''    @soap(%(args)s_returns=%(response)s)'''
 
-METHOD = '''    def %(name)s(self, %(args)s):'''
+METHOD = '''    def %(name)s(self%(args)s):'''
 
 METHOD_DOCSTRING = '''\
         """Parameters:
-
-        %(args)s
+%(args)s
 
         Returns: %(response)s
         """
@@ -359,17 +358,17 @@ def generate(client, url=None, standardTypeNamespaces=STANDARD_TYPE_NAMESPACES, 
                 methodReturnType = SCHEMA_TYPE_MAPPING[methodReturnType]
 
             print >>serviceInterfaceOut, SOAPMETHOD % dict(
-                    args=', '.join(methodArgSpecs),
+                    args=''.join(arg + ', ' for arg in methodArgSpecs),
                     response=methodReturnType,
                 )
 
             print >>serviceInterfaceOut, METHOD % dict(
                     name=normalizeIdentifier(methodName),
-                    args=', '.join(methodArgNames),
+                    args=''.join(', ' + arg for arg in methodArgNames),
                 )
 
             print >>serviceInterfaceOut, METHOD_DOCSTRING % dict(
-                    args='\n        '.join(methodArgDetails),
+                    args=''.join('\n        ' + arg_det for arg_det in methodArgDetails),
                     response=methodReturnType,
                 )
 
