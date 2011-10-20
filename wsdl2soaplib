@@ -338,7 +338,7 @@ def sortDeps(printed, typeDeps):
 
     return sortedPrinted
 
-def print_service_interface_header(sd):
+def get_service_interface_header(sd):
     # Main service interface
     return INTERFACE % dict(
             name=normalizeIdentifier(sd.service.name),
@@ -436,7 +436,7 @@ def generate(client, url=None, standardTypeNamespaces=STANDARD_TYPE_NAMESPACES, 
         printed.extend(typesPrinted)
 
         serviceInterfaceOut = StringIO()
-        print >>serviceInterfaceOut, print_service_interface_header(sd)
+        print >>serviceInterfaceOut, get_service_interface_header(sd)
 
         methods = get_methods(sd, typeAttributes, removeInputOutputMesssages, typesPrinted, typeMap) # name -> (response type, list of parameters,)
         print >>serviceInterfaceOut, get_service_interface(methods, typeMap)
