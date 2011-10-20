@@ -34,7 +34,7 @@ from soaplib.core.model.enum import Enum
 
 INTERFACE = '''\
 class %(name)s(%(bases)s):
-    """%(docstring)s"""\
+    """%(docstring)s"""
 '''
 
 SERVICE_INTERFACE_DOCSTRING = '''\
@@ -177,7 +177,7 @@ def get_header(url):
 
     return ('', serviceOut)
 
-def print_types(types, standardTypeNamespaces):
+def get_printed_types(types, standardTypeNamespaces):
     # Types
     typeMap = {}
     typeSeq = []
@@ -186,7 +186,7 @@ def print_types(types, standardTypeNamespaces):
     typesPrinted = []
     for type_ in sorted(types, key=lambda t: t.resolve().enum()):
 
-        typeOut = StringIO()
+        out = []
 
         resolved = type_.resolve()
         namespaceURL = resolved.namespace()[1]
@@ -221,11 +221,11 @@ def print_types(types, standardTypeNamespaces):
 
 
             if resolved.enum():
-                print >>typeOut, "%s = Enum(%s)" % (typeInterfaceName,
-                        ', '.join("'%s'" % attr[0].name.replace(' ', '_') for attr in type_.children()))
+                out.append("%s = Enum(%s)\n" % (typeInterfaceName,
+                        ', '.join("'%s'" % attr[0].name.replace(' ', '_') for attr in type_.children())))
 
             else:
-                print >>typeOut, INTERFACE % dict(
+                out.append(INTERFACE % dict(
                         name=normalizeIdentifier(typeInterfaceName),
                         bases=', '.join(interfaceBases),
                         docstring=formatDocstring(TYPE_INTERFACE_DOCSTRING % dict(
@@ -234,20 +234,20 @@ def print_types(types, standardTypeNamespaces):
                                 namespace=namespaceURL,
                             )
                         )
-                    )
+                    ))
                 if type_.children():
                     for attr in type_.children():
                         name = attr[0].name.replace(' ', '_')
                         attrTypeName = typeName(attr[0])
                         typeAttributes[rawTypeName][name] = attrTypeName
                         schemaType = schemaTypeName(attr[0], deps=typeDeps.setdefault(unicode(rawTypeName), []))
-                        print >>typeOut, "    %s = %s" % (normalizeIdentifier(name), schemaType,)
+                        out.append("    %s = %s\n" % (normalizeIdentifier(name), schemaType,))
                 else:
-                    print >>typeOut, '    pass'
+                    out.append('    pass\n')
 
-            print >>typeOut
+            out.append('\n')
 
-            typesPrinted.append((rawTypeName, typeOut.getvalue(),))
+            typesPrinted.append((rawTypeName, ''.join(out)))
     typesPrinted = sortDeps(typesPrinted, typeDeps)
     return typeMap, typeSeq, typeAttributes, typesPrinted
 
@@ -432,12 +432,11 @@ def generate(client, url=None, standardTypeNamespaces=STANDARD_TYPE_NAMESPACES, 
         # sd.types is a list of tuples where the first element is
         # always equal to the second afaik
         types = (t[0] for t in sd.types)
-        typeMap, typeSeq, typeAttributes, typesPrinted = print_types(types, standardTypeNamespaces)
+        typeMap, typeSeq, typeAttributes, typesPrinted = get_printed_types(types, standardTypeNamespaces)
         printed.extend(typesPrinted)
 
         serviceInterfaceOut = StringIO()
         print >>serviceInterfaceOut, print_service_interface_header(sd)
-        print >>serviceInterfaceOut
 
         methods = get_methods(sd, typeAttributes, removeInputOutputMesssages, typesPrinted, typeMap) # name -> (response type, list of parameters,)
         print >>serviceInterfaceOut, get_service_interface(methods, typeMap)
