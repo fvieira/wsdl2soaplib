@@ -245,12 +245,12 @@ def generate(client, url=None, standardTypeNamespaces=STANDARD_TYPE_NAMESPACES, 
                             print >>typeOut, "    %s = String # XXX: Enumeration value" % name
 
                     else:
-                            for attr in type_[0].children():
-                                name = attr[0].name.replace(' ', '_')
-                                attrTypeName = typeName(attr[0], sd)
-                                typeAttributes[rawTypeName][name] = attrTypeName
-                                schemaType = schemaTypeName(attr[0], sd, deps=typeDeps.setdefault(unicode(rawTypeName), []))
-                                print >>typeOut, "    %s = %s" % (normalizeIdentifier(name), schemaType,)
+                        for attr in type_[0].children():
+                            name = attr[0].name.replace(' ', '_')
+                            attrTypeName = typeName(attr[0], sd)
+                            typeAttributes[rawTypeName][name] = attrTypeName
+                            schemaType = schemaTypeName(attr[0], sd, deps=typeDeps.setdefault(unicode(rawTypeName), []))
+                            print >>typeOut, "    %s = %s" % (normalizeIdentifier(name), schemaType,)
                 else:
                     print >>typeOut, '    pass'
 
