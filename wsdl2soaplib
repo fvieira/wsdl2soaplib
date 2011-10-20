@@ -49,6 +49,8 @@ TYPE_MAP = '''\
 WSDL_TYPES = {
 %(items)s
 }
+
+
 '''
 
 SOAPMETHOD = '''    @soap(%(args)s_returns=%(response)s)'''
@@ -413,6 +415,10 @@ def get_service_interface(methods, typeMap):
 
     return '\n'.join(out)
 
+def get_type_map(typeSeq, typeMap):
+    return TYPE_MAP % dict(
+            items=',\n'.join(["    '%s': %s" % k for k in typeSeq if k[0] in typeMap])
+        )
 
 def generate(client, url=None, standardTypeNamespaces=STANDARD_TYPE_NAMESPACES, removeInputOutputMesssages=True):
     """Given a WSDL URL, return a file that could become your interfaces.py
@@ -437,12 +443,8 @@ def generate(client, url=None, standardTypeNamespaces=STANDARD_TYPE_NAMESPACES, 
         print >>serviceInterfaceOut, get_service_interface(methods, typeMap)
         printed.append((sd.service.name, serviceInterfaceOut.getvalue(),))
 
-        typeMapOut = StringIO()
-        print >>typeMapOut, TYPE_MAP % dict(
-                items=',\n'.join(["    '%s': %s" % k for k in typeSeq if k[0] in typeMap])
-            )
-        print >>typeMapOut
-        printed.append(('', typeMapOut.getvalue(),))
+        typeMapOut = get_type_map(typeSeq, typeMap)
+        printed.append(('', typeMapOut))
 
     return '\n'.join([v[1] for v in printed])
 
