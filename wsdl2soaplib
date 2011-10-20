@@ -16,7 +16,7 @@ VALID_IDENTIFIER_SUBSEQUENT_LETTER_RE = re.compile(r"[_A-Za-z1-9]")
 
 HEADER = '''\
 """SOAP web services generated from:
-%(wsdl)s.
+{wsdl}.
 """
 
 from soaplib.core.model.primitive import (
@@ -33,35 +33,35 @@ from soaplib.core.model.enum import Enum
 '''
 
 INTERFACE = '''\
-class %(name)s(%(bases)s):
-    """%(docstring)s"""
+class {name}({bases}):
+    """{docstring}"""
 '''
 
 SERVICE_INTERFACE_DOCSTRING = '''\
-SOAP service ``%(serviceName)s`` with target namespace %(tns)s.
+SOAP service ``{serviceName}`` with target namespace {tns}.
 '''
 
 TYPE_INTERFACE_DOCSTRING = '''\
-SOAP %(type)s ``{%(namespace)s}%(name)s``
+SOAP {type} ``{{{namespace}}}{name}``
 '''
 
 TYPE_MAP = '''\
-WSDL_TYPES = {
-%(items)s
-}
+WSDL_TYPES = {{
+{items}
+}}
 
 
 '''
 
-SOAPMETHOD = '''    @soap(%(args)s_returns=%(response)s)'''
+SOAPMETHOD = '''    @soap({args}_returns={response})'''
 
-METHOD = '''    def %(name)s(self%(args)s):'''
+METHOD = '''    def {name}(self{args}):'''
 
 METHOD_DOCSTRING = '''\
         """Parameters:
-%(args)s
+{args}
 
-        Returns: %(response)s
+        Returns: {response}
         """\
 '''
 
@@ -77,7 +77,7 @@ STANDARD_TYPE_NAMESPACES = [
 ]
 
 SCHEMA_TYPE_MAPPING = {
-    None:                   '%(typeName)s',
+    None:                   '{typeName}',
 
     'None':                 'Null',
 
@@ -133,17 +133,17 @@ def schemaTypeName(type, deps=None):
     if schemaType is None: # not a standard type
 
         # user default
-        schemaType = SCHEMA_TYPE_MAPPING[None] 
+        schemaType = SCHEMA_TYPE_MAPPING[None]
 
         # possibly save dependency link
         if deps is not None:
             deps.append(unicode(name))
 
     required = type.required()
-    schemaType = schemaType % dict(typeName=name, required=required)
+    schemaType = schemaType.format(typeName=name, required=required)
 
     if type.unbounded():
-        schemaType = "Array(%s)" % schemaType
+        schemaType = 'Array({})'.format(schemaType)
 
     return schemaType
 
@@ -171,9 +171,7 @@ def normalizeIdentifier(identifier):
     return identifier
 
 def get_header(url):
-    return HEADER % dict(
-            wsdl=url,
-        )
+    return HEADER.format(wsdl=url)
 
 def get_printed_types(sd_types, standardTypeNamespaces):
     # Types
@@ -219,14 +217,14 @@ def get_printed_types(sd_types, standardTypeNamespaces):
 
 
             if resolved.enum():
-                out.append("%s = Enum(%s)\n" % (typeInterfaceName,
-                        ', '.join("'%s'" % attr[0].name.replace(' ', '_') for attr in type_.children())))
+                enum_args = ', '.join("'{}'".format(attr[0].name.replace(' ', '_')) for attr in type_.children())
+                out.append('{} = Enum({})\n'.format(typeInterfaceName, enum_args))
 
             else:
-                out.append(INTERFACE % dict(
+                out.append(INTERFACE.format(
                         name=normalizeIdentifier(typeInterfaceName),
                         bases=', '.join(interfaceBases),
-                        docstring=formatDocstring(TYPE_INTERFACE_DOCSTRING % dict(
+                        docstring=formatDocstring(TYPE_INTERFACE_DOCSTRING.format(
                                 type=typeDescription,
                                 name=rawTypeName,
                                 namespace=namespaceURL,
@@ -239,7 +237,7 @@ def get_printed_types(sd_types, standardTypeNamespaces):
                         attrTypeName = typeName(attr[0])
                         typeAttributes[rawTypeName][name] = attrTypeName
                         schemaType = schemaTypeName(attr[0], deps=typeDeps.setdefault(unicode(rawTypeName), []))
-                        out.append("    %s = %s\n" % (normalizeIdentifier(name), schemaType,))
+                        out.append('    {} = {}\n'.format(normalizeIdentifier(name), schemaType,))
                 else:
                     out.append('    pass\n')
 
@@ -339,10 +337,10 @@ def sortDeps(printed, typeDeps):
 
 def get_service_interface_header(sd):
     # Main service interface
-    return INTERFACE % dict(
+    return INTERFACE.format(
             name=normalizeIdentifier(sd.service.name),
             bases=u"DefinitionBase",
-            docstring=formatDocstring(SERVICE_INTERFACE_DOCSTRING % dict(
+            docstring=formatDocstring(SERVICE_INTERFACE_DOCSTRING.format(
                     serviceName=sd.service.name,
                     tns=sd.wsdl.tns[1],
                 )
@@ -374,11 +372,11 @@ def get_service_interface(methods, typeMap):
 
             methodModifiers = ""
             if methodModifierParts:
-                methodModifiers = ' (%s)' % ', '.join(methodModifierParts)
+                methodModifiers = ' ({})'.format(', '.join(methodModifierParts))
 
             argTypeName = typeName(argDetail)
 
-            methodSpec = "``%s`` -- %s%s" % (
+            methodSpec = '``{}`` -- {}{}'.format(
                     argDetail.name,
                     argTypeName,
                     methodModifiers
@@ -395,17 +393,17 @@ def get_service_interface(methods, typeMap):
         if methodReturnType not in typeMap and methodReturnType in SCHEMA_TYPE_MAPPING:
             methodReturnType = SCHEMA_TYPE_MAPPING[methodReturnType]
 
-        out.append(SOAPMETHOD % dict(
+        out.append(SOAPMETHOD.format(
                 args=''.join(arg + ', ' for arg in methodArgSpecs),
                 response=methodReturnType,
             ))
 
-        out.append(METHOD % dict(
+        out.append(METHOD.format(
                 name=normalizeIdentifier(methodName),
                 args=''.join(', ' + arg for arg in methodArgNames),
             ))
 
-        out.append(METHOD_DOCSTRING % dict(
+        out.append(METHOD_DOCSTRING.format(
                 args=''.join('\n        ' + arg_det for arg_det in methodArgDetails),
                 response=methodReturnType,
             ))
@@ -415,8 +413,8 @@ def get_service_interface(methods, typeMap):
     return ''.join(s + '\n' for s in out)
 
 def get_type_map(typeSeq, typeMap):
-    return TYPE_MAP % dict(
-            items=',\n'.join(["    '%s': %s" % k for k in typeSeq if k[0] in typeMap])
+    return TYPE_MAP.format(
+            items=',\n'.join(["    '{}': {}".format(*k) for k in typeSeq if k[0] in typeMap])
         )
 
 def generate(client, url=None, standardTypeNamespaces=STANDARD_TYPE_NAMESPACES, removeInputOutputMesssages=True):
@@ -447,8 +445,8 @@ def generate(client, url=None, standardTypeNamespaces=STANDARD_TYPE_NAMESPACES, 
 
 def main():
     if len(sys.argv) < 2:
-        print "Usage: %s <url>" % sys.argv[0]
-        print "The output will be printed to the console"
+        print 'Usage: {} <url>'.format(sys.argv[0])
+        print 'The output will be printed to the console'
         return
 
     if not '://' in sys.argv[1]:
