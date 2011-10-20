@@ -412,7 +412,7 @@ def get_service_interface(methods, typeMap):
 
         out.append(DEFAULT_RETURN)
 
-    return '\n'.join(out)
+    return ''.join(s + '\n' for s in out)
 
 def get_type_map(typeSeq, typeMap):
     return TYPE_MAP % dict(
@@ -435,11 +435,10 @@ def generate(client, url=None, standardTypeNamespaces=STANDARD_TYPE_NAMESPACES, 
         printed.extend(typesPrinted)
 
         serviceInterfaceOut = StringIO()
-        print >>serviceInterfaceOut, get_service_interface_header(sd)
+        printed.append(get_service_interface_header(sd))
 
         methods = get_methods(sd, typeAttributes, removeInputOutputMesssages, type_names, typeMap) # name -> (response type, list of parameters,)
-        print >>serviceInterfaceOut, get_service_interface(methods, typeMap)
-        printed.append(serviceInterfaceOut.getvalue())
+        printed.append(get_service_interface(methods, typeMap))
 
         typeMapOut = get_type_map(typeSeq, typeMap)
         printed.append(typeMapOut)
