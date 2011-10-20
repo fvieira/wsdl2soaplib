@@ -237,7 +237,8 @@ def print_types(types, standardTypeNamespaces):
             print >>typeOut
 
             typesPrinted.append((rawTypeName, typeOut.getvalue(),))
-    return typeMap, typeSeq, typeDeps, typeAttributes, typesPrinted
+    typesPrinted = sortDeps(typesPrinted, typeDeps)
+    return typeMap, typeSeq, typeAttributes, typesPrinted
 
 def get_methods(sd, typeAttributes, removeInputOutputMesssages, typesPrinted, typeMap):
     methods = {}
@@ -347,8 +348,7 @@ def generate(client, url=None, standardTypeNamespaces=STANDARD_TYPE_NAMESPACES, 
         # sd.types is a list of tuples where the first element is
         # always equal to the second afaik
         types = (t[0] for t in sd.types)
-        typeMap, typeSeq, typeDeps, typeAttributes, typesPrinted = print_types(types, standardTypeNamespaces)
-        typesPrinted = sortDeps(typesPrinted, typeDeps)
+        typeMap, typeSeq, typeAttributes, typesPrinted = print_types(types, standardTypeNamespaces)
 
         serviceInterfaceOut = StringIO()
 
