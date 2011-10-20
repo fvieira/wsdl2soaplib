@@ -116,11 +116,11 @@ def formatDocstring(text, indent=4, colwidth=78):
     joiner = '\n' + ' ' * indent
     return joiner.join(textwrap.wrap(text, width) + [''])
 
-def typeName(type, sd):
+def typeName(type):
     resolved = type.resolve()
     return resolved.name or ''
 
-def schemaTypeName(type, sd, deps=None):
+def schemaTypeName(type, deps=None):
 
     resolved = type.resolve()
     name = resolved.name or ''
@@ -165,6 +165,79 @@ def normalizeIdentifier(identifier):
         identifier = identifier + '_'
 
     return identifier
+
+def print_types(types, standardTypeNamespaces):
+    # Types
+    typeMap = {}
+    typeSeq = []
+    typeDeps = {}
+    typeAttributes = {}
+    typesPrinted = []
+    for type_ in sorted(types, key=lambda t: t.resolve().enum()):
+
+        typeOut = StringIO()
+
+        resolved = type_.resolve()
+        namespaceURL = resolved.namespace()[1]
+        if namespaceURL not in standardTypeNamespaces:
+
+            if resolved.enum():
+                typeDescription = "enumeration"
+            else:
+                typeDescription = "complex type"
+
+            # Look for basess
+            interfaceBases = []
+            if resolved.extension():
+                def find(t):
+                    for c in t.rawchildren:
+                        if c.extension():
+                            find(c)
+                        if c.ref is not None:
+                            interfaceBases.append(c.ref[0])
+                find(resolved)
+
+            if not interfaceBases:
+                interfaceBases = ['ClassModel']
+
+            rawTypeName = typeName(type_)
+
+            typeInterfaceName = normalizeIdentifier(rawTypeName)
+
+            typeMap[rawTypeName] = typeInterfaceName
+            typeSeq.append((rawTypeName, typeInterfaceName,))
+            typeAttributes[rawTypeName] = {}
+
+
+            if resolved.enum():
+                print >>typeOut, "%s = Enum(%s)" % (typeInterfaceName,
+                        ', '.join("'%s'" % attr[0].name.replace(' ', '_') for attr in type_.children()))
+
+            else:
+                print >>typeOut, INTERFACE % dict(
+                        name=normalizeIdentifier(typeInterfaceName),
+                        bases=', '.join(interfaceBases),
+                        docstring=formatDocstring(TYPE_INTERFACE_DOCSTRING % dict(
+                                type=typeDescription,
+                                name=rawTypeName,
+                                namespace=namespaceURL,
+                            )
+                        )
+                    )
+                if type_.children():
+                    for attr in type_.children():
+                        name = attr[0].name.replace(' ', '_')
+                        attrTypeName = typeName(attr[0])
+                        typeAttributes[rawTypeName][name] = attrTypeName
+                        schemaType = schemaTypeName(attr[0], deps=typeDeps.setdefault(unicode(rawTypeName), []))
+                        print >>typeOut, "    %s = %s" % (normalizeIdentifier(name), schemaType,)
+                else:
+                    print >>typeOut, '    pass'
+
+            print >>typeOut
+
+            typesPrinted.append((rawTypeName, typeOut.getvalue(),))
+    return typeMap, typeSeq, typeDeps, typeAttributes, typesPrinted
 
 def get_methods(sd, typeAttributes, removeInputOutputMesssages, typesPrinted, typeMap):
     methods = {}
@@ -233,82 +306,12 @@ def generate(client, url=None, standardTypeNamespaces=STANDARD_TYPE_NAMESPACES, 
 
         printed.append(('', serviceOut.getvalue(),))
 
-        # Types
 
-        typeMap = {}
-        typeSeq = []
-        typeDeps = {}
-        typeAttributes = {}
-
-        typesPrinted = []
 
         # sd.types is a list of tuples where the first element is
         # always equal to the second afaik
         types = (t[0] for t in sd.types)
-        for type_ in sorted(types, key=lambda t: t.resolve().enum()):
-
-            typeOut = StringIO()
-
-            resolved = type_.resolve()
-            namespaceURL = resolved.namespace()[1]
-            if namespaceURL not in standardTypeNamespaces:
-
-                if resolved.enum():
-                    typeDescription = "enumeration"
-                else:
-                    typeDescription = "complex type"
-
-                # Look for basess
-                interfaceBases = []
-                if resolved.extension():
-                    def find(t):
-                        for c in t.rawchildren:
-                            if c.extension():
-                                find(c)
-                            if c.ref is not None:
-                                interfaceBases.append(c.ref[0])
-                    find(resolved)
-
-                if not interfaceBases:
-                    interfaceBases = ['ClassModel']
-
-                rawTypeName = typeName(type_, sd)
-
-                typeInterfaceName = normalizeIdentifier(rawTypeName)
-
-                typeMap[rawTypeName] = typeInterfaceName
-                typeSeq.append((rawTypeName, typeInterfaceName,))
-                typeAttributes[rawTypeName] = {}
-
-
-                if resolved.enum():
-                    print >>typeOut, "%s = Enum(%s)" % (typeInterfaceName,
-                            ', '.join("'%s'" % attr[0].name.replace(' ', '_') for attr in type_.children()))
-
-                else:
-                    print >>typeOut, INTERFACE % dict(
-                            name=normalizeIdentifier(typeInterfaceName),
-                            bases=', '.join(interfaceBases),
-                            docstring=formatDocstring(TYPE_INTERFACE_DOCSTRING % dict(
-                                    type=typeDescription,
-                                    name=rawTypeName,
-                                    namespace=namespaceURL,
-                                )
-                            )
-                        )
-                    if type_.children():
-                        for attr in type_.children():
-                            name = attr[0].name.replace(' ', '_')
-                            attrTypeName = typeName(attr[0], sd)
-                            typeAttributes[rawTypeName][name] = attrTypeName
-                            schemaType = schemaTypeName(attr[0], sd, deps=typeDeps.setdefault(unicode(rawTypeName), []))
-                            print >>typeOut, "    %s = %s" % (normalizeIdentifier(name), schemaType,)
-                    else:
-                        print >>typeOut, '    pass'
-
-                print >>typeOut
-
-                typesPrinted.append((rawTypeName, typeOut.getvalue(),))
+        typeMap, typeSeq, typeDeps, typeAttributes, typesPrinted = print_types(types, standardTypeNamespaces)
 
         serviceInterfaceOut = StringIO()
 
@@ -348,7 +351,7 @@ def generate(client, url=None, standardTypeNamespaces=STANDARD_TYPE_NAMESPACES, 
                 if methodModifierParts:
                     methodModifiers = ' (%s)' % ', '.join(methodModifierParts)
 
-                argTypeName = typeName(argDetail, sd)
+                argTypeName = typeName(argDetail)
 
                 methodSpec = "``%s`` -- %s%s" % (
                         argDetail.name,
@@ -360,7 +363,7 @@ def generate(client, url=None, standardTypeNamespaces=STANDARD_TYPE_NAMESPACES, 
 
                 # for @soap decorator
 
-                schemaType = schemaTypeName(argDetail, sd)
+                schemaType = schemaTypeName(argDetail)
                 methodArgSpecs.append(schemaType)
 
             # TODO: Probably not aware of array return types
