@@ -171,20 +171,18 @@ def normalizeIdentifier(identifier):
     return identifier
 
 def get_header(url):
-    serviceOut = HEADER % dict(
+    return HEADER % dict(
             wsdl=url,
         )
 
-    return ('', serviceOut)
-
-def get_printed_types(types, standardTypeNamespaces):
+def get_printed_types(sd_types, standardTypeNamespaces):
     # Types
     typeMap = {}
     typeSeq = []
     typeDeps = {}
     typeAttributes = {}
     typesPrinted = []
-    for type_ in sorted(types, key=lambda t: t.resolve().enum()):
+    for type_ in sorted(sd_types, key=lambda t: t.resolve().enum()):
 
         out = []
 
@@ -249,9 +247,10 @@ def get_printed_types(types, standardTypeNamespaces):
 
             typesPrinted.append((rawTypeName, ''.join(out)))
     typesPrinted = sortDeps(typesPrinted, typeDeps)
-    return typeMap, typeSeq, typeAttributes, typesPrinted
+    type_names, typesPrinted = zip(*typesPrinted)
+    return typeMap, typeSeq, typeAttributes, typesPrinted, type_names
 
-def get_methods(sd, typeAttributes, removeInputOutputMesssages, typesPrinted, typeMap):
+def get_methods(sd, typeAttributes, removeInputOutputMesssages, type_names, typeMap):
     methods = {}
     for p in sd.ports:
         for m in p[1]:
@@ -277,22 +276,22 @@ def get_methods(sd, typeAttributes, removeInputOutputMesssages, typesPrinted, ty
                     # Remove types used as input/output messages
                     if removeInputOutputMesssages:
                         remove = False
-                        for idx, (t, x) in enumerate(typesPrinted):
+                        for idx, t in enumerate(type_names):
                             if t == inputMessage:
                                 remove = True
                                 break
                         if remove:
-                            del typesPrinted[idx]
+                            del type_names[idx]
                             if inputMessage in typeMap:
                                 del typeMap[inputMessage]
 
                         remove = False
-                        for idx, (t, x) in enumerate(typesPrinted):
+                        for idx, t in enumerate(type_names):
                             if t == outputMessage:
                                 remove = True
                                 break
                         if remove:
-                            del typesPrinted[idx]
+                            del type_names[idx]
                             if outputMessage in typeMap:
                                 del typeMap[outputMessage]
 
@@ -424,28 +423,28 @@ def generate(client, url=None, standardTypeNamespaces=STANDARD_TYPE_NAMESPACES, 
     """Given a WSDL URL, return a file that could become your interfaces.py
     """
 
-    printed = [] # sequence of type name -> string
+    printed = [] # list of output to be printed
 
     for sd in client.sd:
         printed.append(get_header(url))
 
         # sd.types is a list of tuples where the first element is
         # always equal to the second afaik
-        types = (t[0] for t in sd.types)
-        typeMap, typeSeq, typeAttributes, typesPrinted = get_printed_types(types, standardTypeNamespaces)
+        sd_types = (t[0] for t in sd.types)
+        typeMap, typeSeq, typeAttributes, typesPrinted, type_names = get_printed_types(sd_types, standardTypeNamespaces)
         printed.extend(typesPrinted)
 
         serviceInterfaceOut = StringIO()
         print >>serviceInterfaceOut, get_service_interface_header(sd)
 
-        methods = get_methods(sd, typeAttributes, removeInputOutputMesssages, typesPrinted, typeMap) # name -> (response type, list of parameters,)
+        methods = get_methods(sd, typeAttributes, removeInputOutputMesssages, type_names, typeMap) # name -> (response type, list of parameters,)
         print >>serviceInterfaceOut, get_service_interface(methods, typeMap)
-        printed.append((sd.service.name, serviceInterfaceOut.getvalue(),))
+        printed.append(serviceInterfaceOut.getvalue())
 
         typeMapOut = get_type_map(typeSeq, typeMap)
-        printed.append(('', typeMapOut))
+        printed.append(typeMapOut)
 
-    return '\n'.join([v[1] for v in printed])
+    return '\n'.join(printed)
 
 def main():
     if len(sys.argv) < 2:
