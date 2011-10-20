@@ -290,6 +290,42 @@ def get_methods(sd, typeAttributes, removeInputOutputMesssages, typesPrinted, ty
                 methods[methodName] = (response, methodArgs,)
     return methods
 
+def sortDeps(printed, typeDeps):
+    """Sort list of complex types based on internal dependencies"""
+
+    printed = list(reversed(printed))
+
+    queue = [item for item in printed if len(typeDeps.get(unicode(item[0]), [])) == 0]
+    satisfied = set(queue)
+    remaining = [item for item in printed if item not in queue]
+
+    sortedPrinted = []
+
+    while queue:
+        item = queue.pop()
+        itemTypeName = unicode(item[0])
+
+        sortedPrinted.append(item)
+        satisfied.add(itemTypeName)
+
+        for item in remaining:
+
+            remainingItemTypeName = unicode(item[0])
+
+            depsList = typeDeps.get(remainingItemTypeName, [])
+            remainingDeps = []
+            for dep in depsList:
+                if dep not in satisfied:
+                    remainingDeps.append(dep)
+
+            typeDeps[remainingItemTypeName] = remainingDeps
+
+            if len(remainingDeps) == 0:
+                queue.append(item)
+                remaining.remove(item)
+
+    return sortedPrinted
+
 def generate(client, url=None, standardTypeNamespaces=STANDARD_TYPE_NAMESPACES, removeInputOutputMesssages=True):
     """Given a WSDL URL, return a file that could become your interfaces.py
     """
@@ -312,6 +348,7 @@ def generate(client, url=None, standardTypeNamespaces=STANDARD_TYPE_NAMESPACES, 
         # always equal to the second afaik
         types = (t[0] for t in sd.types)
         typeMap, typeSeq, typeDeps, typeAttributes, typesPrinted = print_types(types, standardTypeNamespaces)
+        typesPrinted = sortDeps(typesPrinted, typeDeps)
 
         serviceInterfaceOut = StringIO()
 
@@ -389,44 +426,7 @@ def generate(client, url=None, standardTypeNamespaces=STANDARD_TYPE_NAMESPACES, 
 
             print >>serviceInterfaceOut
 
-        # Sort list of complex types based on internal dependencies
 
-        def sortDeps(printed):
-
-            printed = list(reversed(printed))
-
-            queue = [item for item in printed if len(typeDeps.get(unicode(item[0]), [])) == 0]
-            satisfied = set(queue)
-            remaining = [item for item in printed if item not in queue]
-
-            sortedPrinted = []
-
-            while queue:
-                item = queue.pop()
-                itemTypeName = unicode(item[0])
-
-                sortedPrinted.append(item)
-                satisfied.add(itemTypeName)
-
-                for item in remaining:
-
-                    remainingItemTypeName = unicode(item[0])
-
-                    depsList = typeDeps.get(remainingItemTypeName, [])
-                    remainingDeps = []
-                    for dep in depsList:
-                        if dep not in satisfied:
-                            remainingDeps.append(dep)
-
-                    typeDeps[remainingItemTypeName] = remainingDeps
-
-                    if len(remainingDeps) == 0:
-                        queue.append(item)
-                        remaining.remove(item)
-
-            return sortedPrinted
-
-        typesPrinted = sortDeps(typesPrinted)
 
         # Print everything
         printed.extend(typesPrinted)
