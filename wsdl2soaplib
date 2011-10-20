@@ -191,11 +191,14 @@ def generate(client, url=None, standardTypeNamespaces=STANDARD_TYPE_NAMESPACES, 
 
         typesPrinted = []
 
-        for type_ in sd.types:
+        # sd.types is a list of tuples where the first element is
+        # always equal to the second afaik
+        types = (t[0] for t in sd.types)
+        for type_ in sorted(types, key=lambda t: t.resolve().enum()):
 
             typeOut = StringIO()
 
-            resolved = type_[0].resolve()
+            resolved = type_.resolve()
             namespaceURL = resolved.namespace()[1]
             if namespaceURL not in standardTypeNamespaces:
 
@@ -218,7 +221,7 @@ def generate(client, url=None, standardTypeNamespaces=STANDARD_TYPE_NAMESPACES, 
                 if not interfaceBases:
                     interfaceBases = ['ClassModel']
 
-                rawTypeName = typeName(type_[0], sd)
+                rawTypeName = typeName(type_, sd)
 
                 typeInterfaceName = normalizeIdentifier(rawTypeName)
 
@@ -229,7 +232,7 @@ def generate(client, url=None, standardTypeNamespaces=STANDARD_TYPE_NAMESPACES, 
 
                 if resolved.enum():
                     print >>typeOut, "%s = Enum(%s)" % (typeInterfaceName,
-                            ', '.join("'%s'" % attr[0].name.replace(' ', '_') for attr in type_[0].children()))
+                            ', '.join("'%s'" % attr[0].name.replace(' ', '_') for attr in type_.children()))
 
                 else:
                     print >>typeOut, INTERFACE % dict(
@@ -242,8 +245,8 @@ def generate(client, url=None, standardTypeNamespaces=STANDARD_TYPE_NAMESPACES, 
                                 )
                             )
                         )
-                    if type_[0].children():
-                        for attr in type_[0].children():
+                    if type_.children():
+                        for attr in type_.children():
                             name = attr[0].name.replace(' ', '_')
                             attrTypeName = typeName(attr[0], sd)
                             typeAttributes[rawTypeName][name] = attrTypeName
