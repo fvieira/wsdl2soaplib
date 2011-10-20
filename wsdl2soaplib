@@ -1,7 +1,5 @@
 #! /usr/bin/env python
 
-from StringIO import StringIO
-
 import os.path
 import sys
 import textwrap
@@ -38,7 +36,7 @@ class {name}({bases}):
 '''
 
 SERVICE_INTERFACE_DOCSTRING = '''\
-SOAP service ``{serviceName}`` with target namespace {tns}.
+SOAP service ``{service_name}`` with target namespace {tns}.
 '''
 
 TYPE_INTERFACE_DOCSTRING = '''\
@@ -70,14 +68,14 @@ DEFAULT_RETURN = '''\
 
 '''
 
-STANDARD_TYPE_NAMESPACES = [
+STANDARD_TYPE_NAMESPACES = (
     'http://schemas.xmlsoap.org/soap/encoding/',
     'http://schemas.xmlsoap.org/wsdl/',
     'http://www.w3.org/2001/XMLSchema'
-]
+)
 
 SCHEMA_TYPE_MAPPING = {
-    None:                   '{typeName}',
+    None:                   '{type_name}',
 
     'None':                 'Null',
 
@@ -115,333 +113,330 @@ SCHEMA_TYPE_MAPPING = {
     'hexBinary':            'String',
 }
 
-def formatDocstring(text, indent=4, colwidth=78):
+
+def format_docstring(text, indent=4, colwidth=78):
     width = colwidth - indent
     joiner = '\n' + ' ' * indent
     return joiner.join(textwrap.wrap(text, width) + [''])
 
-def typeName(type):
-    resolved = type.resolve()
+
+def type_name(type_):
+    resolved = type_.resolve()
     return resolved.name or ''
 
-def schemaTypeName(type, deps=None):
 
-    resolved = type.resolve()
+def schema_type_name(type_, deps=None):
+
+    resolved = type_.resolve()
     name = resolved.name or ''
 
-    schemaType = SCHEMA_TYPE_MAPPING.get(name)
-    if schemaType is None: # not a standard type
+    schema_type = SCHEMA_TYPE_MAPPING.get(name)
+    if schema_type is None:  # not a standard type
 
         # user default
-        schemaType = SCHEMA_TYPE_MAPPING[None]
+        schema_type = SCHEMA_TYPE_MAPPING[None]
 
         # possibly save dependency link
         if deps is not None:
             deps.append(unicode(name))
 
-    required = type.required()
-    schemaType = schemaType.format(typeName=name, required=required)
+    required = type_.required()
+    schema_type = schema_type.format(type_name=name, required=required)
 
-    if type.unbounded():
-        schemaType = 'Array({})'.format(schemaType)
+    if type_.unbounded():
+        schema_type = 'Array({})'.format(schema_type)
 
-    return schemaType
+    return schema_type
 
-def normalizeIdentifier(identifier):
+
+def normalize_identifier(identifier):
     if not VALID_IDENTIFIER_RE.match(identifier):
-        newIdentifierLetters = []
-        firstLetter = True
+        new_identifier_letters = []
+        first_letter = True
         for letter in identifier:
-            if firstLetter:
+            if first_letter:
                 if VALID_IDENTIFIER_FIRST_LETTER_RE.match(letter):
-                    newIdentifierLetters.append(letter)
+                    new_identifier_letters.append(letter)
                 else:
-                    newIdentifierLetters.append('_')
-                firstLetter = False
+                    new_identifier_letters.append('_')
+                first_letter = False
             else:
                 if VALID_IDENTIFIER_SUBSEQUENT_LETTER_RE.match(letter):
-                    newIdentifierLetters.append(letter)
+                    new_identifier_letters.append(letter)
                 else:
-                    newIdentifierLetters.append('_')
-        identifier = ''.join(newIdentifierLetters)
+                    new_identifier_letters.append('_')
+        identifier = ''.join(new_identifier_letters)
 
     if keyword.iskeyword(identifier):
         identifier = identifier + '_'
 
     return identifier
 
+
 def get_header(url):
     return HEADER.format(wsdl=url)
 
-def get_printed_types(sd_types, standardTypeNamespaces):
+
+def get_printed_types(service_def_types, standard_type_namespaces):
     # Types
-    typeMap = {}
-    typeSeq = []
-    typeDeps = {}
-    typeAttributes = {}
-    typesPrinted = []
-    for type_ in sorted(sd_types, key=lambda t: t.resolve().enum()):
+    type_map = {}
+    type_seq = []
+    type_deps = {}
+    type_attributes = {}
+    types_printed = []
+    for type_ in sorted(service_def_types, key=lambda t: t.resolve().enum()):
 
         out = []
 
         resolved = type_.resolve()
-        namespaceURL = resolved.namespace()[1]
-        if namespaceURL not in standardTypeNamespaces:
+        namespace_url = resolved.namespace()[1]
+        if namespace_url not in standard_type_namespaces:
 
             if resolved.enum():
-                typeDescription = "enumeration"
+                type_description = "enumeration"
             else:
-                typeDescription = "complex type"
+                type_description = "complex type"
 
-            # Look for basess
-            interfaceBases = []
+            # Look for bases
+            interface_bases = []
             if resolved.extension():
                 def find(t):
                     for c in t.rawchildren:
                         if c.extension():
                             find(c)
                         if c.ref is not None:
-                            interfaceBases.append(c.ref[0])
+                            interface_bases.append(c.ref[0])
                 find(resolved)
 
-            if not interfaceBases:
-                interfaceBases = ['ClassModel']
+            if not interface_bases:
+                interface_bases = ['ClassModel']
 
-            rawTypeName = typeName(type_)
+            raw_type_name = type_name(type_)
 
-            typeInterfaceName = normalizeIdentifier(rawTypeName)
+            type_interface_name = normalize_identifier(raw_type_name)
 
-            typeMap[rawTypeName] = typeInterfaceName
-            typeSeq.append((rawTypeName, typeInterfaceName,))
-            typeAttributes[rawTypeName] = {}
-
+            type_map[raw_type_name] = type_interface_name
+            type_seq.append((raw_type_name, type_interface_name,))
+            type_attributes[raw_type_name] = {}
 
             if resolved.enum():
                 enum_args = ', '.join("'{}'".format(attr[0].name.replace(' ', '_')) for attr in type_.children())
-                out.append('{} = Enum({})\n'.format(typeInterfaceName, enum_args))
+                out.append('{} = Enum({})\n'.format(type_interface_name, enum_args))
 
             else:
                 out.append(INTERFACE.format(
-                        name=normalizeIdentifier(typeInterfaceName),
-                        bases=', '.join(interfaceBases),
-                        docstring=formatDocstring(TYPE_INTERFACE_DOCSTRING.format(
-                                type=typeDescription,
-                                name=rawTypeName,
-                                namespace=namespaceURL,
+                        name=normalize_identifier(type_interface_name),
+                        bases=', '.join(interface_bases),
+                        docstring=format_docstring(TYPE_INTERFACE_DOCSTRING.format(
+                                type=type_description,
+                                name=raw_type_name,
+                                namespace=namespace_url,
                             )
                         )
                     ))
                 if type_.children():
                     for attr in type_.children():
                         name = attr[0].name.replace(' ', '_')
-                        attrTypeName = typeName(attr[0])
-                        typeAttributes[rawTypeName][name] = attrTypeName
-                        schemaType = schemaTypeName(attr[0], deps=typeDeps.setdefault(unicode(rawTypeName), []))
-                        out.append('    {} = {}\n'.format(normalizeIdentifier(name), schemaType,))
+                        attr_type_name = type_name(attr[0])
+                        type_attributes[raw_type_name][name] = attr_type_name
+                        schema_type = schema_type_name(attr[0], deps=type_deps.setdefault(unicode(raw_type_name), []))
+                        out.append('    {} = {}\n'.format(normalize_identifier(name), schema_type))
                 else:
                     out.append('    pass\n')
 
             out.append('\n')
 
-            typesPrinted.append((rawTypeName, ''.join(out)))
-    typesPrinted = sortDeps(typesPrinted, typeDeps)
-    type_names, typesPrinted = zip(*typesPrinted)
-    return typeMap, typeSeq, typeAttributes, typesPrinted, type_names
+            types_printed.append((raw_type_name, ''.join(out)))
+    types_printed = sort_deps(types_printed, type_deps)
+    type_names, types_printed = zip(*types_printed)
+    return type_map, type_seq, type_attributes, types_printed, type_names
 
-def get_methods(sd, typeAttributes, removeInputOutputMesssages, type_names, typeMap):
+
+def get_methods(service_def, type_attributes, remove_input_output_messages, type_names, type_map):
     methods = {}
-    for p in sd.ports:
-        for m in p[1]:
-            methodName = m[0]
-            methodArgs = m[1]
-            if methodName not in methods:
-                methodDef = p[0].method(methodName)
+    for port in service_def.ports:
+        for method_name, method_args in port[1]:
+            if method_name not in methods:
+                method_def = port[0].method(method_name)
 
                 # XXX: This is discards the namespace part
-                if methodDef.soap.output.body.wrapped:
+                if method_def.soap.output.body.wrapped:
 
-                    inputMessage  = methodDef.soap.input.body.parts[0].element[0]
-                    outputMessage = methodDef.soap.output.body.parts[0].element[0]
+                    input_message  = method_def.soap.input.body.parts[0].element[0]
+                    output_message = method_def.soap.output.body.parts[0].element[0]
 
-                    if outputMessage in typeAttributes:
-                        if len(typeAttributes[outputMessage]) > 0:
-                            response = typeAttributes[outputMessage].values()[0]
+                    if output_message in type_attributes:
+                        if len(type_attributes[output_message]) > 0:
+                            response = type_attributes[output_message].values()[0]
                         else:
                             response = "None"
                     else:
-                        response = outputMessage
+                        response = output_message
 
                     # Remove types used as input/output messages
-                    if removeInputOutputMesssages:
-                        remove = False
-                        for idx, t in enumerate(type_names):
-                            if t == inputMessage:
-                                remove = True
-                                break
-                        if remove:
-                            del type_names[idx]
-                            if inputMessage in typeMap:
-                                del typeMap[inputMessage]
+                    if remove_input_output_messages:
+                        def remove_messages(message):
+                            for idx, type_name_ in enumerate(type_names):
+                                if type_name_ == message:
+                                    del type_names[idx]
+                                    if input_message in type_map:
+                                        del type_map[input_message]
 
-                        remove = False
-                        for idx, t in enumerate(type_names):
-                            if t == outputMessage:
-                                remove = True
-                                break
-                        if remove:
-                            del type_names[idx]
-                            if outputMessage in typeMap:
-                                del typeMap[outputMessage]
+                        remove_messages(input_message)
+                        remove_messages(output_message)
 
                 else:
-                    response = methodDef.soap.output.body.parts[0].element[0]
+                    response = method_def.soap.output.body.parts[0].element[0]
 
-                methods[methodName] = (response, methodArgs,)
+                methods[method_name] = (response, method_args,)
     return methods
 
-def sortDeps(printed, typeDeps):
+
+def sort_deps(printed, type_deps):
     """Sort list of complex types based on internal dependencies"""
 
     printed = list(reversed(printed))
 
-    queue = [item for item in printed if len(typeDeps.get(unicode(item[0]), [])) == 0]
+    queue = [item for item in printed if len(type_deps.get(unicode(item[0]), [])) == 0]
     satisfied = set(queue)
     remaining = [item for item in printed if item not in queue]
 
-    sortedPrinted = []
+    sorted_printed = []
 
     while queue:
         item = queue.pop()
-        itemTypeName = unicode(item[0])
+        item_type_name = unicode(item[0])
 
-        sortedPrinted.append(item)
-        satisfied.add(itemTypeName)
+        sorted_printed.append(item)
+        satisfied.add(item_type_name)
 
         for item in remaining:
 
-            remainingItemTypeName = unicode(item[0])
+            remaining_item_type_name = unicode(item[0])
 
-            depsList = typeDeps.get(remainingItemTypeName, [])
-            remainingDeps = []
-            for dep in depsList:
+            deps_list = type_deps.get(remaining_item_type_name, [])
+            remaining_deps = []
+            for dep in deps_list:
                 if dep not in satisfied:
-                    remainingDeps.append(dep)
+                    remaining_deps.append(dep)
 
-            typeDeps[remainingItemTypeName] = remainingDeps
+            type_deps[remaining_item_type_name] = remaining_deps
 
-            if len(remainingDeps) == 0:
+            if len(remaining_deps) == 0:
                 queue.append(item)
                 remaining.remove(item)
 
-    return sortedPrinted
+    return sorted_printed
 
-def get_service_interface_header(sd):
+
+def get_service_interface_header(service_def):
     # Main service interface
     return INTERFACE.format(
-            name=normalizeIdentifier(sd.service.name),
+            name=normalize_identifier(service_def.service.name),
             bases=u"DefinitionBase",
-            docstring=formatDocstring(SERVICE_INTERFACE_DOCSTRING.format(
-                    serviceName=sd.service.name,
-                    tns=sd.wsdl.tns[1],
+            docstring=format_docstring(SERVICE_INTERFACE_DOCSTRING.format(
+                    service_name=service_def.service.name,
+                    tns=service_def.wsdl.tns[1],
                 )
             )
         )
 
 
-def get_service_interface(methods, typeMap):
+def get_service_interface(methods, type_map):
     out = []
 
-    for methodName, (methodReturnType, argList) in sorted(methods.iteritems()):
+    for method_name, (method_return_type, arg_list) in sorted(methods.iteritems()):
 
-        methodArgNames = [m[0] for m in argList]
+        method_arg_names = []
+        method_arg_details = []
+        method_arg_specs = []
 
-        methodArgDetails = []
-        methodArgSpecs = []
-
-        for m in argList:
-            argDetail = m[1]
+        for method_arg_name, arg_detail in arg_list:
+            method_arg_names.append(method_arg_name)
 
             # for docstring
 
-            methodModifierParts = []
+            method_modifier_parts = []
 
-            if not argDetail.required():
-                methodModifierParts.append('optional')
-            if argDetail.nillable:
-                methodModifierParts.append('may be None')
+            if not arg_detail.required():
+                method_modifier_parts.append('optional')
+            if arg_detail.nillable:
+                method_modifier_parts.append('may be None')
 
-            methodModifiers = ""
-            if methodModifierParts:
-                methodModifiers = ' ({})'.format(', '.join(methodModifierParts))
+            method_modifiers = ""
+            if method_modifier_parts:
+                method_modifiers = ' ({})'.format(', '.join(method_modifier_parts))
 
-            argTypeName = typeName(argDetail)
+            arg_type_name = type_name(arg_detail)
 
-            methodSpec = '``{}`` -- {}{}'.format(
-                    argDetail.name,
-                    argTypeName,
-                    methodModifiers
+            method_spec = '``{}`` -- {}{}'.format(
+                    arg_detail.name,
+                    arg_type_name,
+                    method_modifiers
                 )
 
-            methodArgDetails.append(methodSpec)
+            method_arg_details.append(method_spec)
 
             # for @soap decorator
 
-            schemaType = schemaTypeName(argDetail)
-            methodArgSpecs.append(schemaType)
+            schema_type = schema_type_name(arg_detail)
+            method_arg_specs.append(schema_type)
 
         # TODO: Probably not aware of array return types
-        if methodReturnType not in typeMap and methodReturnType in SCHEMA_TYPE_MAPPING:
-            methodReturnType = SCHEMA_TYPE_MAPPING[methodReturnType]
+        if method_return_type not in type_map and method_return_type in SCHEMA_TYPE_MAPPING:
+            method_return_type = SCHEMA_TYPE_MAPPING[method_return_type]
 
         out.append(SOAPMETHOD.format(
-                args=''.join(arg + ', ' for arg in methodArgSpecs),
-                response=methodReturnType,
+                args=''.join(arg + ', ' for arg in method_arg_specs),
+                response=method_return_type,
             ))
 
         out.append(METHOD.format(
-                name=normalizeIdentifier(methodName),
-                args=''.join(', ' + arg for arg in methodArgNames),
+                name=normalize_identifier(method_name),
+                args=''.join(', ' + arg for arg in method_arg_names),
             ))
 
         out.append(METHOD_DOCSTRING.format(
-                args=''.join('\n        ' + arg_det for arg_det in methodArgDetails),
-                response=methodReturnType,
+                args=''.join('\n        ' + arg_det for arg_det in method_arg_details),
+                response=method_return_type,
             ))
 
         out.append(DEFAULT_RETURN)
 
     return ''.join(s + '\n' for s in out)
 
-def get_type_map(typeSeq, typeMap):
+
+def get_type_map(type_seq, type_map):
     return TYPE_MAP.format(
-            items=',\n'.join(["    '{}': {}".format(*k) for k in typeSeq if k[0] in typeMap])
+            items=',\n'.join(["    '{}': {}".format(*k) for k in type_seq if k[0] in type_map])
         )
 
-def generate(client, url=None, standardTypeNamespaces=STANDARD_TYPE_NAMESPACES, removeInputOutputMesssages=True):
+
+def generate(client, url=None, standard_type_namespaces=STANDARD_TYPE_NAMESPACES, remove_input_output_messages=True):
     """Given a WSDL URL, return a file that could become your interfaces.py
     """
 
-    printed = [] # list of output to be printed
+    printed = []  # list of output to be printed
 
-    for sd in client.sd:
+    for service_def in client.sd:
         printed.append(get_header(url))
 
-        # sd.types is a list of tuples where the first element is
+        # service_def.types is a list of tuples where the first element is
         # always equal to the second afaik
-        sd_types = (t[0] for t in sd.types)
-        typeMap, typeSeq, typeAttributes, typesPrinted, type_names = get_printed_types(sd_types, standardTypeNamespaces)
-        printed.extend(typesPrinted)
+        service_def_types = (t[0] for t in service_def.types)
+        type_map, type_seq, type_attributes, types_printed, type_names = get_printed_types(service_def_types, standard_type_namespaces)
+        printed.extend(types_printed)
 
-        serviceInterfaceOut = StringIO()
-        printed.append(get_service_interface_header(sd))
+        printed.append(get_service_interface_header(service_def))
 
-        methods = get_methods(sd, typeAttributes, removeInputOutputMesssages, type_names, typeMap) # name -> (response type, list of parameters,)
-        printed.append(get_service_interface(methods, typeMap))
+        methods = get_methods(service_def, type_attributes, remove_input_output_messages, type_names, type_map)  # name -> (response type, list of parameters,)
+        printed.append(get_service_interface(methods, type_map))
 
-        typeMapOut = get_type_map(typeSeq, typeMap)
-        printed.append(typeMapOut)
+        type_map_out = get_type_map(type_seq, type_map)
+        printed.append(type_map_out)
 
     return '\n'.join(printed)
+
 
 def main():
     if len(sys.argv) < 2:
