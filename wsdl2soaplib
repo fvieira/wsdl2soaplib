@@ -166,6 +166,57 @@ def normalizeIdentifier(identifier):
 
     return identifier
 
+def get_methods(sd, typeAttributes, removeInputOutputMesssages, typesPrinted, typeMap):
+    methods = {}
+    for p in sd.ports:
+        for m in p[1]:
+            methodName = m[0]
+            methodArgs = m[1]
+            if methodName not in methods:
+                methodDef = p[0].method(methodName)
+
+                # XXX: This is discards the namespace part
+                if methodDef.soap.output.body.wrapped:
+
+                    inputMessage  = methodDef.soap.input.body.parts[0].element[0]
+                    outputMessage = methodDef.soap.output.body.parts[0].element[0]
+
+                    if outputMessage in typeAttributes:
+                        if len(typeAttributes[outputMessage]) > 0:
+                            response = typeAttributes[outputMessage].values()[0]
+                        else:
+                            response = "None"
+                    else:
+                        response = outputMessage
+
+                    # Remove types used as input/output messages
+                    if removeInputOutputMesssages:
+                        remove = False
+                        for idx, (t, x) in enumerate(typesPrinted):
+                            if t == inputMessage:
+                                remove = True
+                                break
+                        if remove:
+                            del typesPrinted[idx]
+                            if inputMessage in typeMap:
+                                del typeMap[inputMessage]
+
+                        remove = False
+                        for idx, (t, x) in enumerate(typesPrinted):
+                            if t == outputMessage:
+                                remove = True
+                                break
+                        if remove:
+                            del typesPrinted[idx]
+                            if outputMessage in typeMap:
+                                del typeMap[outputMessage]
+
+                else:
+                    response = methodDef.soap.output.body.parts[0].element[0]
+
+                methods[methodName] = (response, methodArgs,)
+    return methods
+
 def generate(client, url=None, standardTypeNamespaces=STANDARD_TYPE_NAMESPACES, removeInputOutputMesssages=True):
     """Given a WSDL URL, return a file that could become your interfaces.py
     """
@@ -273,65 +324,15 @@ def generate(client, url=None, standardTypeNamespaces=STANDARD_TYPE_NAMESPACES, 
             )
         print >>serviceInterfaceOut
 
-        methods = {} # name -> (response type, list of parameters,)
+        methods = get_methods(sd, typeAttributes, removeInputOutputMesssages, typesPrinted, typeMap) # name -> (response type, list of parameters,)
+        for methodName, (methodReturnType, argList) in sorted(methods.iteritems()):
 
-        for p in sd.ports:
-            for m in p[1]:
-                methodName = m[0]
-                methodArgs = m[1]
-                if methodName not in methods:
-                    methodDef = p[0].method(methodName)
-
-                    # XXX: This is discards the namespace part
-                    if methodDef.soap.output.body.wrapped:
-
-                        inputMessage  = methodDef.soap.input.body.parts[0].element[0]
-                        outputMessage = methodDef.soap.output.body.parts[0].element[0]
-
-                        if outputMessage in typeAttributes:
-                            if len(typeAttributes[outputMessage]) > 0:
-                                response = typeAttributes[outputMessage].values()[0]
-                            else:
-                                response = "None"
-                        else:
-                            response = outputMessage
-
-                        # Remove types used as input/output messages
-                        if removeInputOutputMesssages:
-                            remove = False
-                            for idx, (t, x) in enumerate(typesPrinted):
-                                if t == inputMessage:
-                                    remove = True
-                                    break
-                            if remove:
-                                del typesPrinted[idx]
-                                if inputMessage in typeMap:
-                                    del typeMap[inputMessage]
-
-                            remove = False
-                            for idx, (t, x) in enumerate(typesPrinted):
-                                if t == outputMessage:
-                                    remove = True
-                                    break
-                            if remove:
-                                del typesPrinted[idx]
-                                if outputMessage in typeMap:
-                                    del typeMap[outputMessage]
-
-                    else:
-                        response = methodDef.soap.output.body.parts[0].element[0]
-
-                    methods[methodName] = (response, methodArgs,)
-
-        for methodName in sorted(methods):
-
-            methodArgNames = [m[0] for m in methods[methodName][1]]
-            methodReturnType = methods[methodName][0]
+            methodArgNames = [m[0] for m in argList]
 
             methodArgDetails = []
             methodArgSpecs = []
 
-            for m in methods[methodName][1]:
+            for m in argList:
                 argDetail = m[1]
 
                 # for docstring
