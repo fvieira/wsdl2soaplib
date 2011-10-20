@@ -29,6 +29,7 @@ from soaplib.core.model.base import Null
 
 from soaplib.core.service import soap, DefinitionBase
 from soaplib.core.model.enum import Enum
+
 '''
 
 INTERFACE = '''\
@@ -64,6 +65,7 @@ METHOD_DOCSTRING = '''\
 
 DEFAULT_RETURN = '''\
         return None
+
 '''
 
 STANDARD_TYPE_NAMESPACES = [
@@ -165,6 +167,13 @@ def normalizeIdentifier(identifier):
         identifier = identifier + '_'
 
     return identifier
+
+def get_header(url):
+    serviceOut = HEADER % dict(
+            wsdl=url,
+        )
+
+    return ('', serviceOut)
 
 def print_types(types, standardTypeNamespaces):
     # Types
@@ -327,6 +336,84 @@ def sortDeps(printed, typeDeps):
 
     return sortedPrinted
 
+def print_service_interface_header(sd):
+    # Main service interface
+    return INTERFACE % dict(
+            name=normalizeIdentifier(sd.service.name),
+            bases=u"DefinitionBase",
+            docstring=formatDocstring(SERVICE_INTERFACE_DOCSTRING % dict(
+                    serviceName=sd.service.name,
+                    tns=sd.wsdl.tns[1],
+                )
+            )
+        )
+
+
+def get_service_interface(methods, typeMap):
+    out = []
+
+    for methodName, (methodReturnType, argList) in sorted(methods.iteritems()):
+
+        methodArgNames = [m[0] for m in argList]
+
+        methodArgDetails = []
+        methodArgSpecs = []
+
+        for m in argList:
+            argDetail = m[1]
+
+            # for docstring
+
+            methodModifierParts = []
+
+            if not argDetail.required():
+                methodModifierParts.append('optional')
+            if argDetail.nillable:
+                methodModifierParts.append('may be None')
+
+            methodModifiers = ""
+            if methodModifierParts:
+                methodModifiers = ' (%s)' % ', '.join(methodModifierParts)
+
+            argTypeName = typeName(argDetail)
+
+            methodSpec = "``%s`` -- %s%s" % (
+                    argDetail.name,
+                    argTypeName,
+                    methodModifiers
+                )
+
+            methodArgDetails.append(methodSpec)
+
+            # for @soap decorator
+
+            schemaType = schemaTypeName(argDetail)
+            methodArgSpecs.append(schemaType)
+
+        # TODO: Probably not aware of array return types
+        if methodReturnType not in typeMap and methodReturnType in SCHEMA_TYPE_MAPPING:
+            methodReturnType = SCHEMA_TYPE_MAPPING[methodReturnType]
+
+        out.append(SOAPMETHOD % dict(
+                args=''.join(arg + ', ' for arg in methodArgSpecs),
+                response=methodReturnType,
+            ))
+
+        out.append(METHOD % dict(
+                name=normalizeIdentifier(methodName),
+                args=''.join(', ' + arg for arg in methodArgNames),
+            ))
+
+        out.append(METHOD_DOCSTRING % dict(
+                args=''.join('\n        ' + arg_det for arg_det in methodArgDetails),
+                response=methodReturnType,
+            ))
+
+        out.append(DEFAULT_RETURN)
+
+    return '\n'.join(out)
+
+
 def generate(client, url=None, standardTypeNamespaces=STANDARD_TYPE_NAMESPACES, removeInputOutputMesssages=True):
     """Given a WSDL URL, return a file that could become your interfaces.py
     """
@@ -334,102 +421,20 @@ def generate(client, url=None, standardTypeNamespaces=STANDARD_TYPE_NAMESPACES, 
     printed = [] # sequence of type name -> string
 
     for sd in client.sd:
-
-        serviceOut = StringIO()
-
-        print >>serviceOut, HEADER % dict(
-                wsdl=url,
-            )
-
-        printed.append(('', serviceOut.getvalue(),))
-
-
+        printed.append(get_header(url))
 
         # sd.types is a list of tuples where the first element is
         # always equal to the second afaik
         types = (t[0] for t in sd.types)
         typeMap, typeSeq, typeAttributes, typesPrinted = print_types(types, standardTypeNamespaces)
+        printed.extend(typesPrinted)
 
         serviceInterfaceOut = StringIO()
-
-        # Main service interface
-        print >>serviceInterfaceOut, INTERFACE % dict(
-                name=normalizeIdentifier(sd.service.name),
-                bases=u"DefinitionBase",
-                docstring=formatDocstring(SERVICE_INTERFACE_DOCSTRING % dict(
-                        serviceName=sd.service.name,
-                        tns=sd.wsdl.tns[1],
-                    )
-                )
-            )
+        print >>serviceInterfaceOut, print_service_interface_header(sd)
         print >>serviceInterfaceOut
 
         methods = get_methods(sd, typeAttributes, removeInputOutputMesssages, typesPrinted, typeMap) # name -> (response type, list of parameters,)
-        for methodName, (methodReturnType, argList) in sorted(methods.iteritems()):
-
-            methodArgNames = [m[0] for m in argList]
-
-            methodArgDetails = []
-            methodArgSpecs = []
-
-            for m in argList:
-                argDetail = m[1]
-
-                # for docstring
-
-                methodModifierParts = []
-
-                if not argDetail.required():
-                    methodModifierParts.append('optional')
-                if argDetail.nillable:
-                    methodModifierParts.append('may be None')
-
-                methodModifiers = ""
-                if methodModifierParts:
-                    methodModifiers = ' (%s)' % ', '.join(methodModifierParts)
-
-                argTypeName = typeName(argDetail)
-
-                methodSpec = "``%s`` -- %s%s" % (
-                        argDetail.name,
-                        argTypeName,
-                        methodModifiers
-                    )
-
-                methodArgDetails.append(methodSpec)
-
-                # for @soap decorator
-
-                schemaType = schemaTypeName(argDetail)
-                methodArgSpecs.append(schemaType)
-
-            # TODO: Probably not aware of array return types
-            if methodReturnType not in typeMap and methodReturnType in SCHEMA_TYPE_MAPPING:
-                methodReturnType = SCHEMA_TYPE_MAPPING[methodReturnType]
-
-            print >>serviceInterfaceOut, SOAPMETHOD % dict(
-                    args=''.join(arg + ', ' for arg in methodArgSpecs),
-                    response=methodReturnType,
-                )
-
-            print >>serviceInterfaceOut, METHOD % dict(
-                    name=normalizeIdentifier(methodName),
-                    args=''.join(', ' + arg for arg in methodArgNames),
-                )
-
-            print >>serviceInterfaceOut, METHOD_DOCSTRING % dict(
-                    args=''.join('\n        ' + arg_det for arg_det in methodArgDetails),
-                    response=methodReturnType,
-                )
-
-            print >>serviceInterfaceOut, DEFAULT_RETURN
-
-            print >>serviceInterfaceOut
-
-
-
-        # Print everything
-        printed.extend(typesPrinted)
+        print >>serviceInterfaceOut, get_service_interface(methods, typeMap)
         printed.append((sd.service.name, serviceInterfaceOut.getvalue(),))
 
         typeMapOut = StringIO()
