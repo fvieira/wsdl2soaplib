@@ -249,7 +249,7 @@ def get_printed_types(service_def_types, standard_type_namespaces):
             types_printed.append((raw_type_name, ''.join(out)))
     types_printed = sort_deps(types_printed, type_deps)
     type_names, types_printed = zip(*types_printed)
-    return type_map, type_seq, type_attributes, types_printed, type_names
+    return type_map, type_seq, type_attributes, list(types_printed), list(type_names)
 
 
 def get_methods(service_def, type_attributes, remove_input_output_messages, type_names, type_map):
