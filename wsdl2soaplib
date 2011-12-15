@@ -144,7 +144,7 @@ def schema_type_name(type_, deps=None):
     schema_type = schema_type.format(type_name=name, required=required)
 
     if type_.unbounded():
-        schema_type = 'Array({})'.format(schema_type)
+        schema_type = 'Array({0})'.format(schema_type)
 
     return schema_type
 
@@ -221,8 +221,8 @@ def get_printed_types(service_def_types, standard_type_namespaces):
             type_attributes[raw_type_name] = {}
 
             if resolved.enum():
-                enum_args = ', '.join("'{}'".format(attr[0].name.replace(' ', '_')) for attr in type_.children())
-                out.append('{} = Enum({})\n'.format(type_interface_name, enum_args))
+                enum_args = ', '.join("'{0}'".format(attr[0].name.replace(' ', '_')) for attr in type_.children())
+                out.append('{0} = Enum({1})\n'.format(type_interface_name, enum_args))
 
             else:
                 out.append(INTERFACE.format(
@@ -241,7 +241,7 @@ def get_printed_types(service_def_types, standard_type_namespaces):
                         attr_type_name = type_name(attr[0])
                         type_attributes[raw_type_name][name] = attr_type_name
                         schema_type = schema_type_name(attr[0], deps=type_deps.setdefault(unicode(raw_type_name), []))
-                        out.append('    {} = {}\n'.format(normalize_identifier(name), schema_type))
+                        out.append('    {0} = {1}\n'.format(normalize_identifier(name), schema_type))
                 else:
                     out.append('    pass\n')
 
@@ -367,11 +367,11 @@ def get_service_interface(methods, type_map):
 
             method_modifiers = ""
             if method_modifier_parts:
-                method_modifiers = ' ({})'.format(', '.join(method_modifier_parts))
+                method_modifiers = ' ({0})'.format(', '.join(method_modifier_parts))
 
             arg_type_name = type_name(arg_detail)
 
-            method_spec = '``{}`` -- {}{}'.format(
+            method_spec = '``{0}`` -- {1}{2}'.format(
                     arg_detail.name,
                     arg_type_name,
                     method_modifiers
@@ -410,7 +410,7 @@ def get_service_interface(methods, type_map):
 
 def get_type_map(type_seq, type_map):
     return TYPE_MAP.format(
-            items=',\n'.join(["    '{}': {}".format(*k) for k in type_seq if k[0] in type_map])
+            items=',\n'.join(["    '{0}': {1}".format(*k) for k in type_seq if k[0] in type_map])
         )
 
 
@@ -442,7 +442,7 @@ def generate(client, url=None, standard_type_namespaces=STANDARD_TYPE_NAMESPACES
 
 def main():
     if len(sys.argv) < 2:
-        print 'Usage: {} <url>'.format(sys.argv[0])
+        print 'Usage: {0} <url>'.format(sys.argv[0])
         print 'The output will be printed to the console'
         return
 
