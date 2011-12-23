@@ -222,7 +222,7 @@ def get_printed_types(service_def_types, standard_type_namespaces):
 
             if resolved.enum():
                 enum_args = ', '.join("'{0}'".format(attr[0].name.replace(' ', '_')) for attr in type_.children())
-                out.append('{0} = Enum({1})\n'.format(type_interface_name, enum_args))
+                out.append('{0} = Enum({1}, type_name="{0}")\n'.format(type_interface_name, enum_args))
 
             else:
                 out.append(INTERFACE.format(
@@ -449,7 +449,10 @@ def main():
     if not '://' in sys.argv[1]:
         sys.argv[1] = 'file://' + os.path.abspath(sys.argv[1])
 
-    client = suds.client.Client(sys.argv[1])
+    if len(sys.argv) == 4:
+        client = suds.client.Client(sys.argv[1], username=sys.argv[2], password=sys.argv[3])
+    else:
+        client = suds.client.Client(sys.argv[1])
     print generate(client, sys.argv[1])
 
 if __name__ == '__main__':
