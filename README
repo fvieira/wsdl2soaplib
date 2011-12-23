@@ -6,4 +6,4 @@ http://stackoverflow.com/questions/3083186/generating-python-soaplib-stubs-from-
 
 HOW TO USE IT:
 
-$ wsdl2soaplib <url or filename of WSDL> > out.py
+$ wsdl2soaplib <url or filename of WSDL> [<username> <password>] > out.py
