@@ -82,6 +82,7 @@ SCHEMA_TYPE_MAPPING = {
     'boolean':              'Boolean',
     'string':               'String',
 
+    'integer':              'Integer',
     'long':                 'Integer',
     'int':                  'Integer',
     'short':                'Integer',
